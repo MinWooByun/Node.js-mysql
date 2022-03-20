@@ -22,6 +22,7 @@ const app = http.createServer(function (request, response) {
   if (pathname === "/") {
     if (queryData.id === undefined) {
       db.query("SELECT * FROM topic", (err, topics) => {
+        if (err) throw err;
         const title = "Welcome";
         const description = "Hello, Node.js";
         const list = template.list(topics);
