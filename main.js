@@ -62,9 +62,10 @@ const app = http.createServer(function (request, response) {
       });
     }
   } else if (pathname === "/create") {
-    fs.readdir("./data", function (error, filelist) {
-      const title = "WEB - create";
-      const list = template.list(filelist);
+    db.query("SELECT * FROM topic", (err, topics) => {
+      if (err) throw err;
+      const title = "Create";
+      const list = template.list(topics);
       const html = template.HTML(
         title,
         list,
@@ -79,79 +80,83 @@ const app = http.createServer(function (request, response) {
             </p>
           </form>
         `,
-        ""
+        `<a href="/create">create</a>`
       );
       response.writeHead(200);
       response.end(html);
     });
   } else if (pathname === "/create_process") {
-    const body = "";
+    let body = "";
     request.on("data", function (data) {
-      body = body + data;
+      body += data;
     });
     request.on("end", function () {
-      // const post = qs.parse(body);
       const title = new URLSearchParams(body).get("title");
       const description = new URLSearchParams(body).get("description");
-      fs.writeFile(`data/${title}`, description, "utf8", function (err) {
-        response.writeHead(302, { Location: `/?id=${title}` });
-        response.end();
-      });
+      db.query(
+        `INSERT INTO topic(title, description, created, author_id) VALUES(?, ?, Now(), ?)`,
+        [title, description, 1],
+        (err, result) => {
+          if (err) throw err;
+          // result.insertId는 방금 INSERT한 row의 id값을 가져온다.
+          response.writeHead(302, { Location: `/?id=${result.insertId}` });
+          response.end();
+        }
+      );
     });
   } else if (pathname === "/update") {
-    fs.readdir("./data", function (error, filelist) {
-      const filteredId = path.parse(queryData.id).base;
-      fs.readFile(`data/${filteredId}`, "utf8", function (err, description) {
-        const title = queryData.id;
-        const list = template.list(filelist);
+    db.query(`SELECT * FROM topic`, (err, topics) => {
+      if (err) throw err;
+      db.query(`SELECT * FROM topic WHERE id=?`, [queryData.id], (err2, topic) => {
+        if (err2) throw err2;
+        const list = template.list(topics);
         const html = template.HTML(
-          title,
+          topic[0].title,
           list,
           `
-            <form action="/update_process" method="post">
-              <input type="hidden" name="id" value="${title}">
-              <p><input type="text" name="title" placeholder="title" value="${title}"></p>
-              <p>
-                <textarea name="description" placeholder="description">${description}</textarea>
-              </p>
-              <p>
-                <input type="submit">
-              </p>
-            </form>
-            `,
-          `<a href="/create">create</a> <a href="/update?id=${title}">update</a>`
+          <form action="/update_process" method="post">
+            <input type="hidden" name="id" value="${topic[0].id}"/>
+            <p><input type="text" name="title" placeholder="title" value="${topic[0].title}"/></p>
+            <p>
+              <textarea name="description" placeholder="discription">${topic[0].description}</textarea>
+            </p>
+            <p><input type="submit"/></p>
+           </form>
+        `,
+          `<a href="/create">create</a> <a href="/update?id=${topic[0].id}">update</a>`
         );
         response.writeHead(200);
         response.end(html);
       });
     });
   } else if (pathname === "/update_process") {
-    const body = "";
+    let body = "";
     request.on("data", function (data) {
-      body = body + data;
+      body += data;
     });
     request.on("end", function () {
-      // const post = qs.parse(body);
       const id = new URLSearchParams(body).get("id");
       const title = new URLSearchParams(body).get("title");
       const description = new URLSearchParams(body).get("description");
-      fs.rename(`data/${id}`, `data/${title}`, function (error) {
-        fs.writeFile(`data/${title}`, description, "utf8", function (err) {
-          response.writeHead(302, { Location: `/?id=${title}` });
+      db.query(
+        `UPDATE topic SET title=?, description=?, author_id=1 WHERE id=?`,
+        [title, description, id],
+        (err, result) => {
+          if (err) throw err;
+          response.writeHead(302, { Location: `/?id=${id}` });
           response.end();
-        });
-      });
+        }
+      );
     });
   } else if (pathname === "/delete_process") {
-    const body = "";
+    let body = "";
     request.on("data", function (data) {
-      body = body + data;
+      body += data;
     });
     request.on("end", function () {
-      // const post = qs.parse(body);
-      const id = post.id;
-      const filteredId = path.parse(id).base;
-      fs.unlink(`data/${filteredId}`, function () {
+      const id = new URLSearchParams(body).get("id");
+      db.query(`DELETE FROM topic WHERE id=?`, [id], (err, result) => {
+        if (err) throw err;
         response.writeHead(302, { Location: `/` });
         response.end();
       });
