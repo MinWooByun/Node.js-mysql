@@ -21,7 +21,7 @@ const app = http.createServer(function (request, response) {
   const pathname = url.parse(_url, true).pathname;
   if (pathname === "/") {
     if (queryData.id === undefined) {
-      db.query("SELECT * FROM topic", (err, topics) => {
+      db.query(`SELECT * FROM topic`, (err, topics) => {
         if (err) throw err;
         const title = "Welcome";
         const description = "Hello, Node.js";
@@ -38,39 +38,28 @@ const app = http.createServer(function (request, response) {
     } else {
       db.query(`SELECT * FROM topic`, (err, topics) => {
         if (err) throw err;
-        db.query(
-          `SELECT * FROM topic LEFT JOIN author ON topic.author_id = author.id WHERE topic.id=?`,
-          [queryData.id],
-          (err, topic) => {
-            if (err) throw err;
-            const title = topic[0].title;
-            const description = topic[0].description;
-            const list = template.list(topics);
-            const html = template.HTML(
-              title,
-              list,
-              `
-              <h2>${title}</h2>
-              ${description}
-              <p>by ${topic[0].name}</p>
-              `,
-              `
-            <a href="/create">create</a>
-            <a href="/update?id=${queryData.id}">update</a>
-            <form action="delete_process" method="post">
-              <input type="hidden" name="id" value="${queryData.id}">
-              <input type="submit" value="delete">
-            </form>
-            `
-            );
-            response.writeHead(200);
-            response.end(html);
-          }
-        );
+        db.query(`SELECT * FROM topic WHERE id = ?`, [queryData.id], (err, topic) => {
+          const title = topic[0].title;
+          const description = topic[0].description;
+          const list = template.list(topics);
+          const html = template.HTML(
+            title,
+            list,
+            `<h2>${title}</h2>${description}`,
+            ` <a href="/create">create</a>
+                <a href="/update?id=${queryData.id}">update</a>
+                <form action="delete_process" method="post">
+                  <input type="hidden" name="id" value="${queryData.id}">
+                  <input type="submit" value="delete">
+                </form>`
+          );
+          response.writeHead(200);
+          response.end(html);
+        });
       });
     }
   } else if (pathname === "/create") {
-    db.query("SELECT * FROM topic", (err, topics) => {
+    db.query(`SELECT * FROM topic`, (err, topics) => {
       if (err) throw err;
       const title = "Create";
       const list = template.list(topics);
@@ -88,7 +77,7 @@ const app = http.createServer(function (request, response) {
             </p>
           </form>
         `,
-        `<a href="/create">create</a>`
+        ""
       );
       response.writeHead(200);
       response.end(html);
@@ -102,11 +91,10 @@ const app = http.createServer(function (request, response) {
       const title = new URLSearchParams(body).get("title");
       const description = new URLSearchParams(body).get("description");
       db.query(
-        `INSERT INTO topic(title, description, created, author_id) VALUES(?, ?, Now(), ?)`,
+        `INSERT INTO topic(title, description, created, author_id) VALUES(?, ?, now(), ?)`,
         [title, description, 1],
         (err, result) => {
           if (err) throw err;
-          // result.insertId는 방금 INSERT한 row의 id값을 가져온다.
           response.writeHead(302, { Location: `/?id=${result.insertId}` });
           response.end();
         }
@@ -115,22 +103,24 @@ const app = http.createServer(function (request, response) {
   } else if (pathname === "/update") {
     db.query(`SELECT * FROM topic`, (err, topics) => {
       if (err) throw err;
-      db.query(`SELECT * FROM topic WHERE id=?`, [queryData.id], (err2, topic) => {
-        if (err2) throw err2;
+      db.query(`SELECT * FROM topic WHERE id = ?`, [queryData.id], (err, topic) => {
+        const title = topic[0].title;
         const list = template.list(topics);
         const html = template.HTML(
-          topic[0].title,
+          title,
           list,
           `
-          <form action="/update_process" method="post">
-            <input type="hidden" name="id" value="${topic[0].id}"/>
-            <p><input type="text" name="title" placeholder="title" value="${topic[0].title}"/></p>
-            <p>
-              <textarea name="description" placeholder="discription">${topic[0].description}</textarea>
-            </p>
-            <p><input type="submit"/></p>
-           </form>
-        `,
+            <form action="/update_process" method="post">
+              <input type="hidden" name="id" value="${topic[0].id}">
+              <p><input type="text" name="title" placeholder="title" value="${topic[0].title}"></p>
+              <p>
+                <textarea name="description" placeholder="description">${topic[0].description}</textarea>
+              </p>
+              <p>
+                <input type="submit">
+              </p>
+            </form>
+            `,
           `<a href="/create">create</a> <a href="/update?id=${topic[0].id}">update</a>`
         );
         response.writeHead(200);
@@ -147,7 +137,7 @@ const app = http.createServer(function (request, response) {
       const title = new URLSearchParams(body).get("title");
       const description = new URLSearchParams(body).get("description");
       db.query(
-        `UPDATE topic SET title=?, description=?, author_id=1 WHERE id=?`,
+        `UPDATE topic SET title = ?, description = ?, author_id = 1 WHERE id = ?`,
         [title, description, id],
         (err, result) => {
           if (err) throw err;
@@ -163,8 +153,7 @@ const app = http.createServer(function (request, response) {
     });
     request.on("end", function () {
       const id = new URLSearchParams(body).get("id");
-      db.query(`DELETE FROM topic WHERE id=?`, [id], (err, result) => {
-        if (err) throw err;
+      db.query(`DELETE FROM topic WHERE id = ${id}`, (err, result) => {
         response.writeHead(302, { Location: `/` });
         response.end();
       });
