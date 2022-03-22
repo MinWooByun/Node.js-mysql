@@ -72,26 +72,32 @@ const app = http.createServer(function (request, response) {
   } else if (pathname === "/create") {
     db.query("SELECT * FROM topic", (err, topics) => {
       if (err) throw err;
-      const title = "Create";
-      const list = template.list(topics);
-      const html = template.HTML(
-        title,
-        list,
-        `
+      db.query(`SELECT * FROM author`, (err2, authors) => {
+        if (err2) throw err2;
+        const title = "Create";
+        const list = template.list(topics);
+        const html = template.HTML(
+          title,
+          list,
+          `
           <form action="/create_process" method="post">
             <p><input type="text" name="title" placeholder="title"></p>
             <p>
               <textarea name="description" placeholder="description"></textarea>
             </p>
             <p>
+              ${template.authorSelect(authors)}
+            </p>
+            <p>
               <input type="submit">
             </p>
           </form>
         `,
-        `<a href="/create">create</a>`
-      );
-      response.writeHead(200);
-      response.end(html);
+          `<a href="/create">create</a>`
+        );
+        response.writeHead(200);
+        response.end(html);
+      });
     });
   } else if (pathname === "/create_process") {
     let body = "";
@@ -101,9 +107,10 @@ const app = http.createServer(function (request, response) {
     request.on("end", function () {
       const title = new URLSearchParams(body).get("title");
       const description = new URLSearchParams(body).get("description");
+      const authorId = new URLSearchParams(body).get("author");
       db.query(
         `INSERT INTO topic(title, description, created, author_id) VALUES(?, ?, Now(), ?)`,
-        [title, description, 1],
+        [title, description, authorId],
         (err, result) => {
           if (err) throw err;
           // result.insertId는 방금 INSERT한 row의 id값을 가져온다.
